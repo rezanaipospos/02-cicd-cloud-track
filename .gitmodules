@@ -1,0 +1,4 @@
+[submodule "05-gitops"]
+	path = 05-gitops
+	url = https://github.com/rezanaipospos/gitops.git
+	branch = 02-cicd-cloud-track
