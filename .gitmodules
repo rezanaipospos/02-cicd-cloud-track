@@ -2,3 +2,7 @@
 	path = 05-gitops
 	url = https://github.com/rezanaipospos/gitops.git
 	branch = 02-cicd-cloud-track
+[submodule "03-ci-jenkins/shared-library"]
+	path = 03-ci-jenkins/shared-library
+	url = https://github.com/rezanaipospos/shared-library.git
+	branch = 02-cicd-cloud-track
