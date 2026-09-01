@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: rollout
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: app
+        image: asia-southeast1-docker.pkg.dev/nsr-devops/docker-images-course/backend-go:5391c80
+        ports:
+        - name: app-port
+          containerPort: 8080
+        env:
+        - name: APP_BANKING_PRIVATE_KEY_PATH
+          value: "/app/keys/banking_private_key.pem"
+        envFrom:
+        - secretRef:
+            name: backend-go-payment-secrets
+            optional: false
+        volumeMounts:
+        - name: banking-pem
+          mountPath: /app/keys
+          readOnly: true
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+      volumes:
+      - name: banking-pem
+        secret:
+          defaultMode: 256
+          secretName: backend-go-payment-pem-secrets
+  strategy:
+    canary:
+      steps:
+      - setWeight: 100

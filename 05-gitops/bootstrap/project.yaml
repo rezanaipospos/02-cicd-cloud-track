@@ -1,0 +1,22 @@
+# ArgoCD AppProject — membatasi source repo & destination cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: course
+  namespace: argocd
+spec:
+  description: "Be A DevOps Employee course project"
+  # Repo yang boleh dipakai sebagai source
+  sourceRepos:
+    - "https://github.com/cinemaxxi-team/devops_architecture.git"  # <- GANTI dengan repo GitOps kamu
+  # Cluster + namespace yang boleh di-deploy
+  destinations:
+    - namespace: "*"
+      server: "https://kubernetes.default.svc"
+  # Izinkan semua resource types
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

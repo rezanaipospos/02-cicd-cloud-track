@@ -1,0 +1,10 @@
+# PDB patch — development (allow full disruption)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb
+spec:
+  maxUnavailable: 100%
+  selector:
+    matchLabels:
+      service_name: dpl

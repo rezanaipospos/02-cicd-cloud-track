@@ -1,0 +1,31 @@
+# Terraform / Terragrunt state & cache
+*.tfstate
+*.tfstate.*
+.terraform/
+.terragrunt-cache/
+crash.log
+
+# Variabel & secret (commit hanya *.example)
+*.tfvars
+!*.tfvars.example
+.env
+*.env
+!*.env.example
+secrets/
+*.key
+*.pem
+credentials.json
+sa-*.json
+jenkins_credentials.yml
+jenkins_credentials*.yml
+!jenkins_credentials.yml.example
+ssl/
+example-project/
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Nested git repos (mirror repo terpisah — AD-7)
+# Folder ini punya .git sendiri, push ke repo terpisah.
+apps/backend-go/

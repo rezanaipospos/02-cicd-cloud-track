@@ -1,0 +1,113 @@
+@page {
+  margin: 20mm 18mm;
+}
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 11pt;
+  line-height: 1.55;
+  color: #1a1a1a;
+  max-width: 100%;
+}
+
+h1 {
+  font-size: 24pt;
+  color: #0b5394;
+  border-bottom: 3px solid #0b5394;
+  padding-bottom: 8px;
+  margin-top: 0;
+}
+
+h2 {
+  font-size: 16pt;
+  color: #0b5394;
+  border-bottom: 1px solid #d0d7de;
+  padding-bottom: 4px;
+  margin-top: 28px;
+  /* Tiap stage mulai di halaman baru */
+  page-break-before: always;
+}
+
+/* H2 pertama tidak perlu page break */
+h2:first-of-type {
+  page-break-before: avoid;
+}
+
+h3 {
+  font-size: 13pt;
+  color: #333;
+  margin-top: 18px;
+}
+
+p, li {
+  font-size: 11pt;
+}
+
+code {
+  background: #f3f4f6;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  font-size: 9.5pt;
+  color: #c7254e;
+}
+
+pre {
+  background: #1e1e2e;
+  color: #e0e0e0;
+  padding: 14px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 9pt;
+  line-height: 1.45;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background: transparent;
+  color: #e0e0e0;
+  padding: 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 10pt;
+  page-break-inside: avoid;
+}
+
+th {
+  background: #0b5394;
+  color: white;
+  text-align: left;
+  padding: 8px 10px;
+}
+
+td {
+  border: 1px solid #d0d7de;
+  padding: 7px 10px;
+  vertical-align: top;
+}
+
+tr:nth-child(even) td {
+  background: #f6f8fa;
+}
+
+blockquote {
+  border-left: 4px solid #f0ad4e;
+  background: #fff8ec;
+  margin: 12px 0;
+  padding: 8px 16px;
+  color: #6a5200;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 20px 0;
+}
+
+a {
+  color: #0b5394;
+}

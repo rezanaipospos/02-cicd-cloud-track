@@ -1,0 +1,14 @@
+# Managed by Ansible — jangan edit manual (akan di-overwrite saat playbook jalan).
+# Jenkins + JCasC membaca env vars ini saat service start.
+# File ini mode 0600 (hanya root yang bisa baca) — berisi credentials.
+
+JENKINS_ADMIN_USER={{ jenkins_admin_user }}
+JENKINS_ADMIN_PASSWORD={{ jenkins_admin_password }}
+GITHUB_USERNAME={{ jenkins_github_username }}
+GITHUB_TOKEN={{ jenkins_github_token }}
+GITHUB_WEBHOOK_SECRET={{ jenkins_github_webhook_secret }}
+GITHUB_ORG={{ jenkins_github_org }}
+SLACK_TOKEN={{ jenkins_slack_token | default('') }}
+SLACK_WORKSPACE={{ jenkins_slack_workspace | default('') }}
+SHARED_LIBRARY_REPO={{ jenkins_shared_library_repo }}
+JENKINS_URL={{ jenkins_url }}

@@ -1,0 +1,18 @@
+# Common SecurityPolicy — Envoy Gateway authorization policy.
+# Uncomment dan isi clientCIDRs untuk whitelist IP access.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: security-policy
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: route
+  # authorization:
+  #   defaultAction: Deny
+  #   rules:
+  #     - action: Allow
+  #       principal:
+  #         clientCIDRs:
+  #           - 0.0.0.0/0  # <- GANTI dengan IP whitelist

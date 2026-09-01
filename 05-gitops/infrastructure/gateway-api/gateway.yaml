@@ -1,0 +1,51 @@
+# =============================================================================
+# Envoy Gateway API — GatewayClass + Gateway untuk course
+# Domain: argocd.naipospos.cloud (dan app lain nanti)
+# SSL: cert yang di-generate sendiri (bukan Let's Encrypt)
+# Pola mengikuti: example-project/cicd/gitops/headoffice-revamp/infrastructure/
+# =============================================================================
+
+# GatewayClass — controller Envoy Gateway
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: eg
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+# Gateway — listener HTTP + HTTPS
+# Namespace: argocd (atau namespace infra tertentu)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: course-gateway
+  namespace: argocd
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shared-gateway-access: "true"
+    - name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shared-gateway-access: "true"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: ssl-cert-naipospos-cloud

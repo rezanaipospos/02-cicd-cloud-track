@@ -1,0 +1,97 @@
+# Common Rollout — standalone pod template (tidak butuh Deployment terpisah).
+# Pattern production-grade: Rollout mengcover seluruh lifecycle pod.
+# Env-specific override via patch/rollout.yaml per environment.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: rollout
+spec:
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: dpl
+  template:
+    metadata:
+      labels:
+        app: dpl
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    spec:
+      serviceAccountName: backend-go
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: dpl
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: app
+          image: dpl
+          imagePullPolicy: Always
+          ports:
+            - name: app-port
+              containerPort: 8080
+          env:
+            - name: APP_BANKING_PRIVATE_KEY_PATH
+              value: "/app/keys/banking_private_key.pem"
+          envFrom:
+            - secretRef:
+                name: backend-go-secrets
+                optional: false
+          volumeMounts:
+            - name: banking-pem
+              mountPath: /app/keys
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: app-port
+              scheme: HTTP
+            failureThreshold: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: app-port
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 2
+            failureThreshold: 3
+            timeoutSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: app-port
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: banking-pem
+          secret:
+            secretName: backend-go-pem-secrets
+            defaultMode: 256  # 0400 octal = 256 decimal
+  strategy:
+    canary:
+      canaryService: svc-canary
+      stableService: svc
+      trafficRouting:
+        plugins:
+          argoproj-labs/gatewayAPI:
+            httpRoute: route
+            namespace: ns
+      steps:
+      - setWeight: 20
+      - pause: {duration: 30s}
+      - setWeight: 50
+      - pause: {duration: 30s}
+      - setWeight: 100

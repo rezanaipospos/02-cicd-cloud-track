@@ -1,0 +1,78 @@
+# Rollout patch — development environment overrides
+# Image di-set eksplisit di sini (CI update field ini via yq/sed saat build)
+# Kustomize images transformer tidak otomatis bekerja untuk CRD Rollout
+#
+# Canary Strategy — 3 stage dengan New Relic metric analysis:
+#   Stage 1: weight 5%  → pause 1 menit → analysis (apdex >= 0.9, error rate <= 5%)
+#   Stage 2: weight 50% → pause 1 menit → analysis
+#   Stage 3: weight 100% → selesai (full promote)
+#
+# Jika analysis GAGAL di stage manapun → Rollout otomatis rollback ke stable version.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: rollout
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: app
+        image: asia-southeast1-docker.pkg.dev/nsr-devops/docker-images-course/backend-go:5391c80
+        ports:
+        - name: app-port
+          containerPort: 8080
+        env:
+        - name: APP_BANKING_PRIVATE_KEY_PATH
+          value: "/app/keys/banking_private_key.pem"
+        # NEW_RELIC_LICENSE_KEY dan APP_ENV di-inject dari Secret (ESO → Vault)
+        envFrom:
+        - secretRef:
+            name: backend-go-secrets
+            optional: false
+        volumeMounts:
+        - name: banking-pem
+          mountPath: /app/keys
+          readOnly: true
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+  strategy:
+    canary:
+      # ── Analysis Template Reference ────────────────────────────────────────
+      # analysis dijalankan SETELAH setiap pause, mengevaluasi metric New Relic.
+      # Jika ANY metric gagal → Rollout abort dan rollback otomatis.
+      analysis:
+        templates:
+        - templateName: backend-go-newrelic-canary-analysis
+        args:
+        - name: nr-app-name
+          value: "backend-go"
+
+      # ── Canary Steps ────────────────────────────────────────────────────────
+      steps:
+      # Stage 1: 5% traffic → canary
+      - setWeight: 5
+      # Tunggu 1 menit agar metric terkumpul cukup di New Relic
+      - pause:
+          duration: 1m
+      # Jalankan analysis: apdex >= 0.9 AND error rate <= 5%
+      - analysis:
+          templates:
+          - templateName: backend-go-newrelic-canary-analysis
+
+      # Stage 2: 50% traffic → canary
+      - setWeight: 50
+      - pause:
+          duration: 1m
+      - analysis:
+          templates:
+          - templateName: backend-go-newrelic-canary-analysis
+
+      # Stage 3: 100% traffic → canary (full promote)
+      # Tidak ada analysis di sini — jika stage 1 & 2 lulus, promote langsung
+      - setWeight: 100

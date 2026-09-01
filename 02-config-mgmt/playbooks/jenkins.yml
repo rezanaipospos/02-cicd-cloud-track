@@ -1,0 +1,14 @@
+---
+# Playbook: Install & konfigurasi Jenkins
+# Jalankan dari folder 02-config-mgmt/:
+#   ansible-playbook playbooks/jenkins.yml
+#
+# PENTING: selalu jalankan dari folder 02-config-mgmt/ (bukan dari playbooks/)
+# agar ansible.cfg terbaca dan roles_path benar.
+
+- name: Install and configure Jenkins
+  hosts: jenkins
+  become: true
+  roles:
+    - jenkins
+    - haproxy

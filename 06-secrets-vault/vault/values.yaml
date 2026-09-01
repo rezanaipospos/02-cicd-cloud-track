@@ -1,0 +1,63 @@
+global:
+  enabled: true
+
+injector:
+  enabled: false  # Kita pakai ESO (External Secrets Operator), bukan Vault Agent Injector
+
+server:
+  image:
+    repository: "hashicorp/vault"
+    tag: "1.18.2"
+
+  ha:
+    enabled: true
+    replicas: 1 # GANTI KE 3 UNTUK PRODUCTION (HA MODE)
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+
+        storage "raft" {
+          path = "/vault/data"
+          retry_join {
+            leader_api_addr = "http://vault-0.vault-internal:8200"
+          }
+          # UNCOMMENT DI BAWAH INI UNTUK PRODUCTION (HA MODE)
+          # retry_join {
+          #   leader_api_addr = "http://vault-1.vault-internal:8200"
+          # }
+          # retry_join {
+          #   leader_api_addr = "http://vault-2.vault-internal:8200"
+          # }
+        }
+
+        seal "gcpckms" {
+          project     = "nsr-devops"
+          region      = "asia-southeast1"
+          key_ring    = "vault-unseal"
+          crypto_key  = "vault-unseal-key"
+        }
+
+        service_registration "kubernetes" {}
+
+  serviceAccount:
+    create: true
+    name: vault
+    annotations:
+      iam.gke.io/gcp-service-account: "vault-sa@nsr-devops.iam.gserviceaccount.com"
+
+  dataStorage:
+    enabled: true
+    size: 10Gi
+    storageClass: standard-rwo  # GKE default, zonal SSD
+
+ui:
+  enabled: true
+  serviceType: ClusterIP

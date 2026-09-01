@@ -1,0 +1,7 @@
+# Credentials file yang sudah diisi (JANGAN commit!)
+# Hanya .example yang di-commit sebagai template.
+inventories/*/group_vars/all/jenkins_credentials.yml
+inventories/*/group_vars/all/vault_password.txt
+
+# Ansible retry files
+*.retry

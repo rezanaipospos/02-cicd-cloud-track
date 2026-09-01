@@ -1,0 +1,57 @@
+global
+    log /dev/log local0
+    maxconn 2048
+    chroot /var/lib/haproxy
+    user haproxy
+    group haproxy
+    daemon
+
+    # TLS tuning (production-grade)
+    ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384
+    ssl-default-bind-options ssl-min-ver TLSv1.2 no-tls-tickets
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    option  forwardfor
+    timeout connect 5s
+    timeout client  30s
+    timeout server  30s
+    retries 3
+
+# --- Frontend HTTP (port 80): certbot challenge + redirect ke HTTPS ---
+frontend http_in
+    bind *:{{ haproxy_http_port }}
+    mode http
+
+    # Let certbot HTTP-01 challenge pass through
+    acl is_acme path_beg /.well-known/acme-challenge/
+    use_backend certbot_backend if is_acme
+
+    # Redirect semua lainnya ke HTTPS
+    http-request redirect scheme https unless is_acme
+
+# --- Frontend HTTPS (port 443): TLS termination + forward ke Jenkins ---
+frontend https_in
+    bind *:{{ haproxy_frontend_port }} ssl crt {{ haproxy_tls_cert_path }} alpn h2,http/1.1
+    mode http
+
+    # Security headers
+    http-response set-header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    http-response set-header X-Content-Type-Options nosniff
+
+    default_backend jenkins_backend
+
+# --- Backend Jenkins (localhost) ---
+backend jenkins_backend
+    mode http
+    http-request set-header X-Forwarded-Proto https
+    http-request set-header X-Forwarded-Port 443
+    server jenkins {{ haproxy_backend_host }}:{{ haproxy_backend_port }} check
+
+# --- Backend certbot (untuk renewal tanpa stop HAProxy) ---
+backend certbot_backend
+    mode http
+    server certbot 127.0.0.1:8888

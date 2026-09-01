@@ -1,0 +1,18 @@
+---
+# HAProxy defaults — reverse proxy + TLS (Let's Encrypt) di depan Jenkins
+haproxy_frontend_port: 443
+haproxy_backend_host: "127.0.0.1"
+haproxy_backend_port: 8080
+
+# Domain (WAJIB: harus resolve ke IP publik VM)
+haproxy_domain: "jenkins.naipospos.cloud"
+
+# TLS via Let's Encrypt (certbot)
+haproxy_tls_cert_path: "/etc/haproxy/certs/{{ haproxy_domain }}.pem"
+haproxy_certbot_email: "rezanaipospos@gmail.com"
+
+# Rate limiting (connections per source IP per 10s)
+haproxy_rate_limit: 30
+
+# HTTP (port 80) — dipakai certbot HTTP-01 challenge, lalu redirect ke HTTPS
+haproxy_http_port: 80

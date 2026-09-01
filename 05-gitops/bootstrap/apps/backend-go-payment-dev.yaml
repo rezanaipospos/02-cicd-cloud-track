@@ -1,0 +1,21 @@
+# Child Application: backend-go-payment (development)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backend-go-payment-dev
+  namespace: argocd
+spec:
+  project: course
+  source:
+    repoURL: "https://github.com/cinemaxxi-team/devops_architecture.git"
+    targetRevision: HEAD
+    path: course-project/05-gitops/applications/development/backend-go-payment
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: backend-development
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,71 @@
+# AnalysisTemplate — New Relic Metrics untuk Argo Rollouts Canary Analysis
+#
+# Digunakan oleh Rollout untuk mengevaluasi health canary sebelum promote ke stage berikutnya.
+# Dua metric yang dievaluasi per stage:
+#   1. apdex_score  : Apdex score backend-go >= 0.9 (satisfied user experience)
+#   2. error_rate   : Error rate (5xx) <= 5% dari total request
+#
+# Query menggunakan New Relic NRQL.
+# Ref: https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/
+#
+# PREREQUISITE:
+#   - Secret `newrelic-api-key` harus tersedia di namespace backend-development:
+#       kubectl create secret generic newrelic-api-key \
+#         --from-literal=api-key=<YOUR_NR_INGEST_LICENSE_KEY> \
+#         -n backend-development
+#   - NEW_RELIC_ACCOUNT_ID dikonfigurasi di env var deployment
+#
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: newrelic-canary-analysis
+  namespace: backend-development
+spec:
+  args:
+  # Account ID New Relic — di-inject dari Rollout args saat runtime
+  - name: nr-account-id
+  # Nama aplikasi di New Relic APM (harus match APP_NAME di agent config)
+  - name: nr-app-name
+    value: "backend-go"
+  # Interval sampling per step (harus cukup untuk mendapat data bermakna)
+  - name: interval
+    value: "30s"
+
+  metrics:
+  # ── Metric 1: Apdex Score ──────────────────────────────────────────────────
+  # Apdex (Application Performance Index) mengukur user satisfaction:
+  #   - 1.0 = semua request satisfied
+  #   - 0.9+ = target production (canary dianggap sehat)
+  # NRQL: rata-rata apdex dalam 1 menit terakhir untuk app spesifik
+  - name: apdex-score
+    interval: 30s
+    count: 2        # evaluasi 2x (total 1 menit) sebelum keputusan
+    successCondition: result >= 0.9
+    failureCondition: result < 0.7   # langsung fail jika sangat buruk
+    failureLimit: 1                  # toleransi 1 kali fail sebelum abort
+    provider:
+      newRelic:
+        profile: newrelic-credentials
+        query: >-
+          SELECT average(apm.service.apdex)
+          FROM Metric
+          WHERE appName = '{{args.nr-app-name}}'
+          SINCE 1 minute ago
+
+  # ── Metric 2: Error Rate ───────────────────────────────────────────────────
+  # Error rate = persentase response HTTP 5xx dari total request.
+  # Threshold: <= 5% (canary sehat jika error rate di bawah 5%)
+  - name: error-rate
+    interval: 30s
+    count: 2
+    successCondition: result <= 5.0
+    failureCondition: result > 10.0  # langsung fail jika error rate sangat tinggi
+    failureLimit: 1
+    provider:
+      newRelic:
+        profile: newrelic-credentials
+        query: >-
+          SELECT percentage(count(*), WHERE httpResponseCode >= '500')
+          FROM Transaction
+          WHERE appName = '{{args.nr-app-name}}'
+          SINCE 1 minute ago

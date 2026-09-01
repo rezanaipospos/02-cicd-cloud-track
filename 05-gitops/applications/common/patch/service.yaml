@@ -1,0 +1,14 @@
+# Stable service — selector HANYA app label.
+# Argo Rollouts validation: semua label di Service selector HARUS ada di Rollout pod template.
+# Kita set selector minimal di sini; Argo Rollouts akan inject revision label otomatis saat canary.
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: app-port
+  selector:
+    app: dpl  # akan di-replace oleh namePrefix + patch menjadi nama app

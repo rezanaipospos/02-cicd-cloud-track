@@ -1,0 +1,11 @@
+# Common PDB — disruption budget default.
+# Env-specific override via patch (dev: maxUnavailable 100%, prod: minAvailable 1).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      service_name: dpl

@@ -1,0 +1,22 @@
+# App-of-apps root — ArgoCD Application yang men-sync semua child applications.
+# Tambah app baru = tambah child Application YAML di apps/ → ArgoCD otomatis create & sync.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: argocd
+spec:
+  project: course
+  source:
+    repoURL: "https://github.com/cinemaxxi-team/devops_architecture.git"  # <- GANTI
+    targetRevision: HEAD
+    path: course-project/05-gitops/bootstrap/apps  # folder berisi child Application YAMLs
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

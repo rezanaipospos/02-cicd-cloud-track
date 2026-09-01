@@ -1,0 +1,107 @@
+# =============================================================================
+# Jenkins Configuration as Code (JCasC)
+# File ini di-mount/disalin ke /var/lib/jenkins/casc_configs/ pada VM Jenkins.
+# Jenkins membaca saat boot → konfigurasi deklaratif, reproducible, versionable.
+#
+# Referensi: https://www.jenkins.io/projects/jcasc/
+# =============================================================================
+
+jenkins:
+  systemMessage: "Be A DevOps Employee — Jenkins (configured by JCasC)"
+  numExecutors: 2
+  mode: NORMAL
+  labelString: "vm-jenkins"
+
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_USER:-admin}"
+          password: "${JENKINS_ADMIN_PASSWORD:-changeme}"
+
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        # Admin — full access
+        - "Overall/Administer:${JENKINS_ADMIN_USER:-admin}"
+        # Developers — read + build non-prod
+        - "Overall/Read:authenticated"
+        - "Job/Build:authenticated"
+        - "Job/Cancel:authenticated"
+        - "Job/Read:authenticated"
+        - "Job/Workspace:authenticated"
+
+  globalNodeProperties:
+    - envVars:
+        env:
+          - key: "ARTIFACT_REGISTRY_REGION"
+            value: "asia-southeast1"
+
+# --- Credentials ---
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "github-jenkins-token"
+              username: "${GITHUB_USERNAME}"
+              password: "${GITHUB_TOKEN}"
+              description: "GitHub token for checkout & GitOps push"
+          - string:
+              scope: GLOBAL
+              id: "slack-token"
+              secret: "${SLACK_TOKEN}"
+              description: "Slack bot token"
+          - string:
+              scope: GLOBAL
+              id: "github-webhook-secret"
+              secret: "${GITHUB_WEBHOOK_SECRET}"
+              description: "GitHub webhook HMAC secret (untuk verifikasi signature)"
+
+# --- Global Shared Library (AD-7) ---
+unclassified:
+  globalLibraries:
+    libraries:
+      - name: "course-shared-library"
+        defaultVersion: "main"
+        retriever:
+          modernSCM:
+            scm:
+              git:
+                remote: "${SHARED_LIBRARY_REPO:-https://github.com/your-org/shared-library.git}"
+                credentialsId: "github-jenkins-token"
+
+  slackNotifier:
+    teamDomain: "${SLACK_WORKSPACE}"
+    tokenCredentialId: "slack-token"
+    room: "#deployments"
+
+  location:
+    url: "${JENKINS_URL:-http://localhost:8080/}"
+
+# --- Job DSL Seed Job ---
+jobs:
+  - script: |
+      // Seed job: auto-create Multibranch Pipeline untuk app contoh (AD-11)
+      multibranchPipelineJob('backend-go') {
+        displayName('backend-go')
+        description('Mini backend Go — course app')
+        branchSources {
+          github {
+            id('backend-go-source')
+            repoOwner("${GITHUB_ORG}")
+            repository('backend-go')
+            credentialsId('github-jenkins-token')
+            buildForkPRMerge(false)
+          }
+        }
+        orphanedItemStrategy {
+          discardOldItems {
+            numToKeep(5)
+          }
+        }
+        triggers {
+          periodic(1) // scan setiap 1 menit (prod: webhook preferred)
+        }
+      }

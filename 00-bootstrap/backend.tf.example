@@ -1,0 +1,14 @@
+# CONTOH backend untuk STAGE BERIKUTNYA (mis. 01-infra), BUKAN untuk stage 00 ini.
+# Salin pola ini ke `backend.tf` di stage berikutnya setelah bucket state dibuat.
+#
+# - `bucket`  : isi dengan output `state_bucket_name` dari stage 00.
+# - `prefix`  : path unik per stage/environment agar state tidak bertabrakan.
+# - `impersonate_service_account`: output `terraform_service_account_email` dari stage 00.
+#
+# terraform {
+#   backend "gcs" {
+#     bucket                      = "GANTI-dengan-state_bucket_name"
+#     prefix                      = "01-infra/dev/"
+#     impersonate_service_account = "sa-terraform@GANTI-project-id.iam.gserviceaccount.com"
+#   }
+# }

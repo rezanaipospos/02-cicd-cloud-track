@@ -1,0 +1,188 @@
+---
+# Role: jenkins
+# Install & konfigurasi Jenkins LTS di Ubuntu.
+#
+# ALUR PENGGUNAAN (2 fase):
+# 1. Run playbook pertama kali → Jenkins terinstall, wizard jalan
+# 2. Setup manual via UI: jalankan wizard, install suggested plugins + JCasC plugin
+# 3. Run playbook kedua kali → JCasC config ter-deploy, Jenkins restart dengan config lengkap
+#
+# Fase dikendalikan via variabel: jenkins_apply_jcasc (default: true)
+# Set false jika hanya mau install Jenkins tanpa apply JCasC.
+
+# === FASE 1: Install Jenkins ===
+
+- name: Install prerequisite packages
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - curl
+      - gpg
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install Java ({{ jenkins_java_package }})
+  ansible.builtin.apt:
+    name:
+      - "{{ jenkins_java_package }}"
+      - ca-certificates-java
+    state: present
+
+- name: Ensure Java cacerts truststore exists (fix Java 21 SSL issue)
+  ansible.builtin.shell: |
+    if [ ! -f /etc/ssl/certs/java/cacerts ]; then
+      update-ca-certificates -f
+      /var/lib/dpkg/info/ca-certificates-java.postinst configure
+    fi
+  changed_when: false
+
+- name: Add Jenkins apt signing key (from keyserver)
+  ansible.builtin.shell: |
+    gpg --no-default-keyring --keyring /usr/share/keyrings/jenkins-keyring.gpg \
+      --keyserver keyserver.ubuntu.com --recv-keys 7198F4B714ABFC68
+    chmod 644 /usr/share/keyrings/jenkins-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/jenkins-keyring.gpg
+
+- name: Add Jenkins apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/jenkins.list
+    content: "{{ jenkins_repo_url }}\n"
+    owner: root
+    group: root
+    mode: '0644'
+  register: jenkins_repo_added
+
+- name: Update apt cache after adding Jenkins repo
+  ansible.builtin.apt:
+    update_cache: true
+  when: jenkins_repo_added.changed
+
+- name: Install Jenkins
+  ansible.builtin.apt:
+    name: "{{ 'jenkins=' + jenkins_version if jenkins_version != '' else 'jenkins' }}"
+    state: "{{ 'present' if jenkins_version == '' else 'present' }}"
+    update_cache: true
+
+- name: Hold Jenkins package (prevent auto-upgrade)
+  ansible.builtin.dpkg_selections:
+    name: jenkins
+    selection: hold
+  when: jenkins_version != ""
+
+# === Fix Java 21 SSL: cacerts symlink ke lokasi yang Jenkins harapkan ===
+- name: Symlink cacerts to Java 21 expected path
+  ansible.builtin.file:
+    src: /etc/ssl/certs/java/cacerts
+    dest: /usr/lib/jvm/java-21-openjdk-amd64/lib/security/cacerts
+    state: link
+    force: true
+  ignore_errors: true
+
+- name: Ensure Jenkins service is enabled and started
+  ansible.builtin.systemd:
+    name: "{{ jenkins_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Wait for Jenkins to be ready (port {{ jenkins_port }})
+  ansible.builtin.uri:
+    url: "http://localhost:{{ jenkins_port }}/login"
+    status_code: 200
+    timeout: 5
+  register: jenkins_ready
+  retries: 30
+  delay: 5
+  until: jenkins_ready.status == 200
+
+# === FASE 2: Apply JCasC (hanya jika jenkins_apply_jcasc = true) ===
+# Jalankan fase ini SETELAH plugin JCasC sudah terinstall (manual via wizard/UI).
+
+- name: Check if JCasC plugin is installed
+  ansible.builtin.stat:
+    path: /var/lib/jenkins/plugins/configuration-as-code.jpi
+  register: jcasc_plugin
+  when: jenkins_apply_jcasc
+
+- name: "SKIP JCasC — plugin belum terinstall"
+  ansible.builtin.debug:
+    msg: |
+      Plugin configuration-as-code BELUM terinstall.
+      Langkah: buka Jenkins UI → Manage Jenkins → Plugins → install 'Configuration as Code'
+      Lalu re-run playbook ini.
+  when: jenkins_apply_jcasc and not jcasc_plugin.stat.exists
+
+# --- Deploy env vars ---
+- name: Deploy Jenkins environment file (credentials for JCasC)
+  ansible.builtin.template:
+    src: jenkins-env.j2
+    dest: /etc/default/jenkins-env
+    owner: root
+    group: root
+    mode: '0600'
+  when: jenkins_apply_jcasc and jcasc_plugin.stat.exists
+
+# --- Systemd override ---
+- name: Create Jenkins systemd override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/jenkins.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: jenkins_apply_jcasc and jcasc_plugin.stat.exists
+
+- name: Deploy systemd override (env file + JCasC path)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/jenkins.service.d/override.conf
+    content: |
+      [Service]
+      EnvironmentFile=/etc/default/jenkins-env
+      Environment="JAVA_OPTS=-Dcasc.jenkins.config={{ jenkins_casc_dir }}"
+    owner: root
+    group: root
+    mode: '0644'
+  when: jenkins_apply_jcasc and jcasc_plugin.stat.exists
+
+# --- JCasC config ---
+- name: Create JCasC config directory
+  ansible.builtin.file:
+    path: "{{ jenkins_casc_dir }}"
+    state: directory
+    owner: jenkins
+    group: jenkins
+    mode: '0755'
+  when: jenkins_apply_jcasc and jcasc_plugin.stat.exists
+
+- name: Deploy JCasC config (jenkins.yaml)
+  ansible.builtin.copy:
+    src: "{{ jenkins_casc_source }}"
+    dest: "{{ jenkins_casc_dir }}/jenkins.yaml"
+    owner: jenkins
+    group: jenkins
+    mode: '0644'
+  when: jenkins_apply_jcasc and jcasc_plugin.stat.exists
+  notify: restart jenkins
+
+# --- Restart untuk apply JCasC ---
+- name: Restart Jenkins to apply JCasC config
+  ansible.builtin.systemd:
+    name: "{{ jenkins_service_name }}"
+    state: restarted
+    daemon_reload: true
+  when: jenkins_apply_jcasc and jcasc_plugin.stat.exists
+
+- name: Wait for Jenkins to be ready after JCasC apply
+  ansible.builtin.uri:
+    url: "http://localhost:{{ jenkins_port }}/login"
+    status_code: 200
+    timeout: 5
+  register: jenkins_jcasc_ready
+  retries: 60
+  delay: 5
+  until: jenkins_jcasc_ready.status == 200
+  when: jenkins_apply_jcasc and jcasc_plugin.stat.exists

@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd
+spec:
+  project: course
+  sources:
+    - repoURL: "https://helm.releases.hashicorp.com"
+      chart: vault
+      targetRevision: "0.29.0"
+      helm:
+        valueFiles:
+          - "$values/course-project/06-secrets-vault/vault/values.yaml"
+    - repoURL: "https://github.com/cinemaxxi-team/devops_architecture.git"
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: vault
+  syncPolicy:
+    automated:
+      prune: false  # Jangan auto-prune data Vault
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

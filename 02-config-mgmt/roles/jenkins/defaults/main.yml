@@ -1,0 +1,70 @@
+---
+# Defaults untuk role Jenkins — override di group_vars atau host_vars jika perlu.
+
+# Versi Java (OpenJDK)
+# Java 21 — Jenkins 2.479+ sudah support penuh.
+# Jika ada SSL error (NoSuchAlgorithmException), role otomatis apply workaround.
+jenkins_java_package: "openjdk-21-jre-headless"
+
+# Jenkins version
+# Kosongkan untuk install versi terbaru dari repo yang dikonfigurasi.
+# Isi dengan versi spesifik (misal "2.504.3") jika ingin pin — pastikan repo sesuai.
+jenkins_version: ""
+
+# Jenkins HTTP port
+jenkins_port: 8080
+
+# Jenkins service
+jenkins_service_name: "jenkins"
+jenkins_service_enabled: true
+jenkins_service_state: "started"
+
+# Plugin yang diinstal saat setup awal (via jenkins-plugin-cli)
+# Dikelompokkan per fungsi agar jelas alasannya.
+jenkins_plugins:
+  # --- Core pipeline ---
+  - workflow-aggregator      # Pipeline (declarative + scripted)
+  - workflow-multibranch     # Multibranch Pipeline (AD-11)
+  - pipeline-stage-view      # Visualisasi stage
+  - pipeline-utility-steps   # readYaml/writeYaml (config-as-data + update kustomization) — KRITIS
+  # --- SCM & GitHub ---
+  - git
+  - github                   # Integrasi GitHub
+  - github-branch-source     # Branch source untuk Multibranch (AD-11)
+  # --- Credentials ---
+  - credentials
+  - credentials-binding      # withCredentials
+  - plain-credentials
+  - ssh-credentials
+  - ssh-agent
+  # --- Build & delivery ---
+  - lockable-resources       # lock('gitops') — KRITIS
+  - docker-workflow          # Docker Pipeline (mode trade-off / docker ops)
+  - docker-plugin            # Docker
+  - build-timeout            # Timeout build (prod)
+  - timestamper              # Timestamp di log (prod)
+  - ansible                  # Integrasi Ansible (opsional)
+  # --- Configuration as Code & Job provisioning ---
+  - configuration-as-code    # JCasC — Jenkins config deklaratif (YAML)
+  - job-dsl                  # Job DSL — generate job as-code (seed job)
+  # --- Notifikasi ---
+  - slack                    # slackSend — KRITIS untuk notifikasi
+  # --- Security / RBAC ---
+  - role-strategy            # Role-Based Authorization Strategy (akses prod hanya lead, AD-11)
+  - matrix-auth              # Matrix-based security (pendukung RBAC)
+  # --- Kubernetes agent (diaktifkan setelah Epic 4 / GKE) ---
+  # - kubernetes             # Uncomment saat migrasi ke K8s agent (AD-16)
+
+# Jenkins apt repo
+jenkins_repo_key_url: "https://pkg.jenkins.io/debian/jenkins.io.key"
+jenkins_repo_url: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.gpg] https://pkg.jenkins.io/debian binary/"
+
+# JCasC (Jenkins Configuration as Code)
+# File JCasC sekarang ada di dalam role (files/jcasc/) — satu tempat, tidak lompat stage.
+jenkins_casc_dir: "/var/lib/jenkins/casc_configs"
+jenkins_casc_source: "jcasc/jenkins.yaml"
+
+# Toggle JCasC apply. Set true setelah plugin JCasC terinstall (manual via wizard).
+# SAAT INI DISABLED — konfigurasi Jenkins dilakukan manual via UI (lihat RUNBOOK).
+# Aktifkan nanti saat JCasC sudah stabil di environment kamu.
+jenkins_apply_jcasc: false

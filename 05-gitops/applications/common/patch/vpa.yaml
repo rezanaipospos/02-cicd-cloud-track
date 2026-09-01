@@ -1,0 +1,12 @@
+# VPA — target Rollout (bukan Deployment).
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: vpa
+spec:
+  targetRef:
+    apiVersion: "argoproj.io/v1alpha1"
+    kind: Rollout
+    name: rollout
+  updatePolicy:
+    updateMode: "Off"

@@ -1,0 +1,91 @@
+---
+# Role: haproxy
+# Reverse proxy + TLS (Let's Encrypt) di depan Jenkins.
+# Alur: Internet :443 → HAProxy (TLS termination) → Jenkins :8080 (localhost)
+# Certbot HTTP-01 challenge via :80 (HAProxy forward ke certbot standalone)
+
+- name: Install HAProxy + certbot
+  ansible.builtin.apt:
+    name:
+      - haproxy
+      - certbot
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create cert directory for HAProxy
+  ansible.builtin.file:
+    path: /etc/haproxy/certs
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+# --- Let's Encrypt cert (certbot standalone, port 80 harus reachable) ---
+- name: Check if cert already exists
+  ansible.builtin.stat:
+    path: "/etc/letsencrypt/live/{{ haproxy_domain }}/fullchain.pem"
+  register: cert_exists
+
+- name: Stop HAProxy temporarily for initial cert (port 80 needed by certbot)
+  ansible.builtin.systemd:
+    name: haproxy
+    state: stopped
+  when: not cert_exists.stat.exists
+  ignore_errors: true
+
+- name: Obtain Let's Encrypt certificate (certbot standalone HTTP-01)
+  ansible.builtin.command:
+    cmd: >
+      certbot certonly --standalone
+      --non-interactive --agree-tos
+      --email {{ haproxy_certbot_email }}
+      -d {{ haproxy_domain }}
+    creates: "/etc/letsencrypt/live/{{ haproxy_domain }}/fullchain.pem"
+  when: not cert_exists.stat.exists
+
+- name: Combine fullchain + privkey into HAProxy PEM format
+  ansible.builtin.shell:
+    cmd: >
+      cat /etc/letsencrypt/live/{{ haproxy_domain }}/fullchain.pem
+      /etc/letsencrypt/live/{{ haproxy_domain }}/privkey.pem
+      > {{ haproxy_tls_cert_path }}
+    creates: "{{ haproxy_tls_cert_path }}"
+  notify: reload haproxy
+
+# --- Cron auto-renew (production-grade: cert auto-renew + reload HAProxy) ---
+- name: Create certbot renewal hook (combine PEM + reload HAProxy)
+  ansible.builtin.copy:
+    dest: /etc/letsencrypt/renewal-hooks/post/haproxy-reload.sh
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      cat /etc/letsencrypt/live/{{ haproxy_domain }}/fullchain.pem \
+          /etc/letsencrypt/live/{{ haproxy_domain }}/privkey.pem \
+          > {{ haproxy_tls_cert_path }}
+      systemctl reload haproxy
+
+- name: Ensure certbot auto-renew timer is active
+  ansible.builtin.systemd:
+    name: certbot.timer
+    enabled: true
+    state: started
+
+# --- HAProxy config ---
+- name: Deploy HAProxy config
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: '0644'
+    validate: "haproxy -c -f %s"
+  notify: reload haproxy
+
+- name: Ensure HAProxy enabled and started
+  ansible.builtin.systemd:
+    name: haproxy
+    enabled: true
+    state: started
+    daemon_reload: true

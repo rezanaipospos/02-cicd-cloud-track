@@ -1,0 +1,12 @@
+# Common base — shared resources untuk semua microservice (DRY, AD-7).
+# Pattern: standalone Rollout (tidak butuh Deployment terpisah).
+resources:
+- rollout.yaml
+- patch/hpa.yaml
+- patch/pdb.yaml
+- patch/service.yaml
+- patch/service-canary.yaml
+- patch/vpa.yaml
+- patch/security-policy.yaml
+- service-account.yaml
+
